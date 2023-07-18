@@ -1,0 +1,10 @@
+version: '3'
+services:
+  pyjulia:
+    build:
+        context: .
+    tty: true
+    stdin_open: true
+    volumes:
+        - .:/app:rw
+    container_name: pyjul
