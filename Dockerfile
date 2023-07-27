@@ -1,4 +1,4 @@
-FROM python:latest
+FROM python:3.9.17
 
 WORKDIR /app
 # Mounting local directory into container is done in docker-compose.yml
@@ -21,6 +21,9 @@ RUN python -c "import julia; julia.install()"
 RUN julia -e 'using Pkg; Pkg.add(["Revise", "BenchmarkTools", "JSON", "JuMP"])'
 # Feature branch of REopt.jl
 RUN julia -e 'using Pkg; Pkg.add(url = "https://github.com/NREL/REopt.jl", rev = "handle-urdb-matrix")'
+
+# Requirements for main dgen code
+RUN pip install colorama colorlog requests matplotlib numpy openpyxl pandas pyarrow psutil psycopg2==2.8.6 scipy sqlalchemy nrel-pysam
 
 # Starts bash terminal?
 CMD ["bash"]
