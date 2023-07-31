@@ -9,7 +9,8 @@ import PySAM.Cashloan as loan
 import PySAM.Pvwattsv8 as pvwatts
 from julia import Main
 
-import concurrent.futures as cf
+from functools import partial
+import multiprocessing as mp
 
 def translated_reopt_post(reopt_post):
     """
@@ -88,7 +89,7 @@ def translated_reopt_post(reopt_post):
 
     return v3_format
 
-def run_reopt_for_sizing():
+def run_reopt_for_sizing(data):
     weather_file = "USA_CA_San.Diego.Lindbergh.722900_2018.epw"
 
     pv = pvwatts.default("PVWattsCommercial")
@@ -142,7 +143,7 @@ def run_reopt_for_sizing():
     return results
 
 if __name__ == '__main__':
-    cores = 1
+    cores = 4
 
     Main.eval('using Pkg; Pkg.add("JuMP"); Pkg.add("HiGHS"); Pkg.add(url = "https://github.com/NREL/REopt.jl", rev = "handle-urdb-matrix"); Pkg.add("JSON")')
     Main.eval('using JuMP; using HiGHS; using JSON; using REopt')
@@ -151,16 +152,10 @@ if __name__ == '__main__':
         results = run_reopt_for_sizing()
         print(results)
     else:
-        EXECUTOR = cf.ProcessPoolExecutor
-
-        futures = []
 
         chunks = range(0,8)
 
-        with EXECUTOR(max_workers=cores) as executor:
-            for agent_chunks in chunks:
-                
-                futures.append(executor.submit(run_reopt_for_sizing))
+        with mp.Pool(cores) as pool:
+            results = pool.map(partial(run_reopt_for_sizing), chunks)
 
-            results = [future.result() for future in futures]
         print(results)
