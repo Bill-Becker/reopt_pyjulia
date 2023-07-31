@@ -7,10 +7,10 @@ import PySAM.Utilityrate5 as ur
 import PySAM.Battery as stbt
 import PySAM.Cashloan as loan
 import PySAM.Pvwattsv8 as pvwatts
-from julia import Main
+import julia
 
 from functools import partial
-import multiprocessing as mp
+from multiprocessing import Process, Queue, Pool
 
 def translated_reopt_post(reopt_post):
     """
@@ -90,6 +90,7 @@ def translated_reopt_post(reopt_post):
     return v3_format
 
 def run_reopt_for_sizing(data):
+    from julia import Main
     weather_file = "USA_CA_San.Diego.Lindbergh.722900_2018.epw"
 
     pv = pvwatts.default("PVWattsCommercial")
@@ -132,30 +133,60 @@ def run_reopt_for_sizing(data):
     Main.inputs = Main.REoptInputs(Main.s)
     Main.eval('results=run_reopt(model, inputs)')
 
-    print(Main.results)
+    # print(Main.results)
 
     results = {"PV" : {"size_kw" : float(Main.results["PV"]["size_kw"])}}
 
     if "ElectricStorage" in Main.results.keys():
-        batt_dict = {"size_kw" :  float(Main.results["ElectricStorage"]["size_kw"]), "size_kwh" : float(Main.results["ElectricStorage"]["size_kwh"])}
+        batt_dict = {"size_kw" :  float(Main.results["ElectricStorage"]["size_kw"]), "size_kwh" : float(julia.Main.results["ElectricStorage"]["size_kwh"])}
         results = results | batt_dict
 
     return results
 
+
+class JuliaProcess(object):
+    def __init__(self):
+        self.processes = []
+        self.queue = Queue()
+
+    def _wrapper(self, *args):
+        julia.Julia(compiled_modules=False)
+        from julia import Main
+        Main.eval('using Pkg; Pkg.add("JuMP"); Pkg.add("HiGHS"); Pkg.add(url = "https://github.com/NREL/REopt.jl", rev = "handle-urdb-matrix"); Pkg.add("JSON")')
+        Main.eval('using JuMP; using HiGHS; using JSON; using REopt')
+        print(args)
+        ret = run_reopt_for_sizing(args)
+        self.queue.put(ret) # this is for save the result of the function
+
+    def run(self, *args):
+        print(args)
+        p = Process(target=self._wrapper, args=args)
+        self.processes.append(p) # this is for save the process job
+        p.start()
+
+    def wait(self):
+        self.rets = []
+    
+        for p in self.processes:
+            ret = self.queue.get()
+            self.rets.append(ret)
+
+        for p in self.processes:
+            p.join()
+
 if __name__ == '__main__':
     cores = 4
-
-    Main.eval('using Pkg; Pkg.add("JuMP"); Pkg.add("HiGHS"); Pkg.add(url = "https://github.com/NREL/REopt.jl", rev = "handle-urdb-matrix"); Pkg.add("JSON")')
-    Main.eval('using JuMP; using HiGHS; using JSON; using REopt')
 
     if cores == 1:
         results = run_reopt_for_sizing()
         print(results)
     else:
 
-        chunks = range(0,8)
+        chunks = list(range(0,8))
 
-        with mp.Pool(cores) as pool:
-            results = pool.map(partial(run_reopt_for_sizing), chunks)
+        jp = JuliaProcess()
+        for chunk in chunks:
+            jp.run(chunk)
 
-        print(results)
+        jp.wait()
+        print(jp.rets)
