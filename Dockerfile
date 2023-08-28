@@ -23,7 +23,7 @@ RUN julia -e 'using Pkg; Pkg.add(["Revise", "BenchmarkTools", "JSON", "JuMP"])'
 RUN julia -e 'using Pkg; Pkg.add(url = "https://github.com/NREL/REopt.jl", rev = "handle-urdb-matrix")'
 
 # Requirements for main dgen code
-RUN pip install colorama colorlog requests matplotlib numpy openpyxl pandas pyarrow psutil psycopg2==2.8.6 scipy sqlalchemy nrel-pysam
+RUN pip install colorama colorlog requests matplotlib numpy openpyxl pandas==1.1.5 pyarrow psutil psycopg2==2.8.6 scipy sqlalchemy==1.4.39 nrel-pysam
 
 # Starts bash terminal?
 CMD ["bash"]
